@@ -1,0 +1,452 @@
+{% foreach($scripts as $script): %}
+    <script src="{{$script}}" type="text/javascript"></script>
+{% endforeach; %}
+
+<script type="text/javascript">
+    jQuery.fn.exists = function(){ return this.length > 0; }
+
+    $(function() {
+        $("small.date").each(function(j, e){ let _l = $(e); _l.html($.timeago(_l.attr('datetime'))); });
+
+        const progress_interval = 60000;
+        let timeout = null,
+            progress_timer = null,
+            progress_inc = 1;
+            progress = 0;
+
+        function setError(st) {
+            $(st).removeClass('text-success text-info').addClass('text-danger').children('i').removeClass('fa-ellipsis-h fa-check').addClass('fa-times');
+            $(st).delay(10000).queue(function(){
+                $(this).removeClass('text-success text-info text-danger').children('i').removeClass('fa-ellipsis-h fa-check fa-times');
+            });
+        }
+
+        function setSaved(st) {
+            $(st).removeClass('text-success text-info').addClass('text-success').children('i').removeClass('fa-ellipsis-h fa-times').addClass('fa-check');
+            $(st).delay(10000).queue(function(){
+                $(this).removeClass('text-success text-info text-danger').children('i').removeClass('fa-ellipsis-h fa-check fa-times');
+            });
+        }
+
+        function setSaving(st) {
+            $(st).removeClass('text-success text-danger').addClass('text-info').children('i').removeClass('fa-times fa-check').addClass('fa-ellipsis-h');
+        }
+
+        function hideHelp() {
+            clearTimeout(timeout);
+            $('#info').hide();
+        }
+
+        function showError(btn) {
+            $('#' + btn).html('<i class="fa fa-exclamation"></i> Error').addClass('disabled').attr('disabled', true);
+            $('#message').html('<p class="bg-danger">An error occurred while performing this action, please contact Admin.</p>');
+        }
+
+        function submit_sites(sites, btn, text, enrol) {
+            const re = /[{(]?[0-9A-F]{8}[-]?([0-9A-F]{4}[-]?){3}[0-9A-F]{12}[)}]?/i;
+
+            if (sites.length > 0) {
+                $('#' + btn).html('<i class="fa fa-cog fa-spin"></i>' + text).addClass('disabled').attr('disabled', true);
+                timeout = setTimeout(function(){ $('#info').show(); }, 300);
+
+                var jqxhr = $.post('{{ $submit }}', { 'type': 'add_sites',
+                                                        'sites': sites.map(x => x.match(re)[0]),
+                                                        'term': $('#year').val(),
+                                                        'is_test': btn === 'test_conversion' ? 1 : 0,
+                                                        'enrol': enrol? 1: 0
+                }, function(result) {
+                    hideHelp();
+                    if (result.success === 1) {
+                        $('#' + btn).html('<i class="fa fa-check"></i> Refreshing page ...');
+                        setTimeout(function() { location.reload(); }, 300);
+                    } else {
+                        showError(btn);
+                    }
+                }, 'json')
+                .fail(function() {
+                    hideHelp();
+                    showError(btn);
+                })
+                .always(function() {
+                    hideHelp();
+                });
+            }
+        }
+
+        function doPost(btn, text, enrol) {
+            submit_sites( $('#add_sites').val().split(/\r?\n/g).filter( (x) => { return x.length  > 2 }), btn, text, enrol);
+        }
+
+        function getworkflow(site) {
+            var jqxhr = $.getJSON('{{ $fetch_workflow }}', {'type' : 'workflow', 'site' : site }, function(result) {
+                const _pre = $('#pre'),
+                      _btn = $('#show-report'),
+                      _btn_efundi = $('#show-efundi'),
+                      _btn_brightspace = $('#show-brightspace'),
+                      _btn_jira = $('#show-jira'),
+                      _btn_import_log = $('#show-import-log'),
+                      _brightspace_url = '{{ $brightspace_url }}',
+                      _efundi_url = '{{ $efundi_url }}',
+                      _import_log_url = '{{ $brightspace_log_url }}',
+                      _jira_url = '{{ $jira_url }}';
+
+                _btn_efundi.show();
+                _btn_efundi.attr('href', _efundi_url + site);
+
+                if (result.report_url.length > 2) {
+                    _btn.show();
+                    _btn.attr('href', result.report_url);
+                } else {
+                    _btn.hide();
+                }
+
+                if(result.state === "error") {
+                    _btn_jira.show();
+                    _btn_jira.attr('href', _jira_url + site + '"');
+                } else {
+                    _btn_jira.hide();
+                }
+
+                if(result.brightspace_site) {
+                    _btn_brightspace.show();
+                    _btn_brightspace.attr('href', _brightspace_url + result.brightspace_site);
+                } else {
+                    _btn_brightspace.hide();
+                }
+
+                if(result.brightspace_site && result.report_url.length > 2) {
+                    _btn_import_log.show();
+                    _btn_import_log.attr('href', _import_log_url + result.brightspace_site + '/history/display?ou=' + result.brightspace_site);
+                } else {
+                    _btn_import_log.hide();
+                }
+
+                if (result.success === 1) {
+                    _pre.html(result.workflow.join("<br/>"));
+                    setProgress(true);
+                } else {
+                    _pre.html("Could not load workflow for site.");
+                }
+            })
+            .fail(function() {
+                $('#pre').html("Could not load workflow for site.");
+            });
+        }
+
+        function doTimer () {
+            const _container = $('.progress-container');
+            progress += progress_inc;
+
+            _container.children('.progress').width((progress / _container.width() * 100) + '%');
+
+            if (progress >= _container.width()) {
+                window.clearInterval(progress_timer);
+                // time to reload selected pre
+                if ($('#sites .active a').exists()) {
+                    const _me = $('#sites .active a'),
+                          _pre = $('#pre');
+
+                    _pre.html("Loading ("+ (_me.data('title') ? _me.data('title') +" : " : "" ) + _me.attr('rel') +") ...");
+                    getworkflow(_me.attr('rel'));
+                }
+            }
+        }
+
+        function setProgress(run) {
+            const _container = $('.progress-container'),
+                  _autoreload = $('#autoreload').is(':checked');
+            progress = 0;
+            progress_inc = _container.width() / 100 / 2;
+            _container.children('.progress').width((progress / _container.width() * 100) + '%');
+
+            window.clearInterval(progress_timer);
+            if (run && _autoreload) {
+                progress_timer = window.setInterval(doTimer, progress_interval / 600);
+            }
+        }
+
+        function check_if_im_in_notification(add_me) {
+            const _el = $('#btn_add_me'),
+                  _state = $('#state').val(),
+                  _email = $('#current_user').val(),
+                  _email_starter = $('#organizer').data('email'),
+                  _notification = $('#notifications').val().trim().replace(/\r?\n/g, ', ').split(';');
+
+            if (_email === _email_starter) return;
+
+            let in_list = _notification.includes(_email);
+
+            if ((in_list === false) && (_state !== 'init')) {
+                _el.show();
+                console.log(`showing ${add_me}`);
+                if (add_me) {
+                    try {
+                        console.log(`adding ${_email}`);
+                        $('#notifications')[0].insert(_email);
+                    } catch (e) {
+                        console.log(e);
+                    }
+                }
+            } else {
+                _el.hide();
+            }
+        }
+
+        function doSearch() {
+            let _input = $('#search_form input[type="text"]'),
+                _filter = _input.val(),
+                _btn = $('#search_form #btn_search'),
+                _active_filter = $('#stats > li.active > a').attr('rel');
+
+            if (_input.val().length > 0) {
+                _btn.removeClass('disabled').removeAttr('disabled').removeClass('fas fa-search').text("X");
+                $('#sites > li').each(function() {
+                    let in_title = $(this).data('title').toLowerCase().toString().indexOf(_filter.toLowerCase()) >= 0,
+                        in_siteid = $(this).data('siteid').toString().indexOf(_filter) >= 0,
+                        in_state = _active_filter == 'all' ? true : $(this).data('state') == _active_filter;
+
+                    console.log($(this).data('title') +" "+ $(this).data('state'));
+                    console.log((in_title || in_siteid) +" " + in_state +" = "+ ((in_title || in_siteid)  && in_state));
+                    (in_title || in_siteid)  && in_state ? $(this).show() : $(this).hide();
+                });
+
+            } else {
+                $('#sites>li').show();
+                _btn.addClass('disabled').attr('disabled', true).addClass('fas fa-search').text("");
+
+                let _active_filter = $('#stats > li.active > a').attr('rel'),
+                    _sites = $('#sites');
+
+                if (_active_filter == 'all') {
+                    _sites.children().show();
+                } else {
+                    _sites.children().hide();
+                    _sites.children('[data-state="'+ _active_filter +'"]').show();
+                }
+            }
+        }
+
+        function btn_reset() {
+            $('#pre-buttons').children().hide();
+        }
+
+        if ($('#notifications').exists()) {
+            $("#notifications").on('change', function(event) {
+                var i = $(this).val();
+                if (i != tmp_inp) {
+                    tmp_inp = i;
+                    setSaving('label[for=notifications]');
+                    check_if_im_in_notification(false);
+
+                    var notification = $('#notifications').val().trim().replace(/\r?\n/g, ', ');
+                    var data = {
+                        "type": "updating",
+                        "notification": (notification.endsWith(', ') ? notification.substring(0, notification.length-2) : notification),
+                        "term": $('#year').val()
+                    };
+
+                    $.ajax({
+                        url: '{{ $submit }}',
+                        method: 'POST',
+                        data: data,
+                        dataType: 'json'
+                    }).done(function(data) {
+                        if (!data.success) {
+                            console.log(data);
+                            console.log("Could not save email");
+                            setError('label[for=notifications]');
+                        } else {
+                            setSaved('label[for=notifications]');
+                        }
+                    }).fail(function(xhr) {
+                        console.log(xhr);
+                        setError('label[for=notifications]');
+                    });
+                }
+            }).email_multiple({ data: $('#notifications').val().split(';'), inputPlaceholder: $('#notifications').attr('placeholder') });
+            tmp_inp = $('#notifications').val();
+
+            $("#btn_add_me").click( function(event) {
+                event.preventDefault();
+                check_if_im_in_notification(true);
+            });
+            check_if_im_in_notification(false);
+        }
+
+        $('#year').on('change', function(event){
+            const _y = $('#year');
+            var notification = $('#notifications').val().trim().replace(/\r?\n/g, ', ');
+            var data = {
+                "type": "updating",
+                "notification": (notification.endsWith(', ') ? notification.substring(0, notification.length-2) : notification),
+                "term": $('#year').val()
+            };
+
+            $.ajax({
+                url: '{{ $submit }}',
+                method: 'POST',
+                data: data,
+                dataType: 'json'
+            }).done(function(data) {
+                if (!data.success) {
+                    // console.log("Could not save term");
+                    setError('label[for=year]');
+                } else {
+                    setSaved('label[for=year]');
+                }
+            }).fail(function(xhr) {
+                // console.log(xhr);
+                setError('label[for=year]');
+            });
+        })
+
+        $('#autoreload').click(function(event) {
+            const _autoreload = $('#autoreload').is(':checked');
+            if (_autoreload && $('#sites .active a').exists()) {
+                setProgress(true);
+            } else {
+                setProgress(false);
+            }
+        });
+
+        $('#btnAccept').click(function(event) {
+            event.preventDefault();
+            var btn_type =$('#conversion_test').is(':checked') ? 'test_conversion' : 'btnAccept';
+            const enrol = $('#enrol').is(':checked');
+            doPost(btn_type, 'Adding sites ...', enrol);
+        });
+
+        $('#sites').on('click', 'a.site', function(event) {
+            event.preventDefault();
+            const _me = $(this),
+                  _pre = $('#pre');
+
+            if (!_me.parent().hasClass('active')) {
+                _me.parent().siblings().removeClass('active');
+                _me.parent().addClass('active');
+
+                _pre.html("Loading ("+ (_me.data('title') ? _me.data('title') +" : " : "" ) + _me.attr('rel') +") ...");
+                getworkflow(_me.attr('rel'));
+            }
+        });
+
+        $('#sites').on('click', 'a.reload', function(event) {
+            event.preventDefault();
+            const _me = $(this);
+            var btn_type = _me.attr('data-istest') === 1 ? 'test_conversion' : 'btnAccept';
+            var enrol = _me.attr('data-enrol') === 1 ? true : false;
+            var _state = _me.attr('data-state');
+            var _title = _me.data('title') === '' ? _me.attr('rel') : _me.data('title');
+
+            if(_state === "error") {
+               var jqxhr = $.post('{{ $submit }}', { "type": 'error', "site": _me.attr('rel') }, function(response) {
+                    var result = JSON.parse(response);
+                    if (result.success === 1) {
+                        location.reload();
+                    } else {
+                        alert('Error restarting: ' + _title);
+                    }
+                })
+                .fail(function(xhr, status, error) {
+                    console.error(xhr.status + ': ' + error);
+                    alert('Error restarting this : ' + _title);
+                })
+                .always(function() {
+                    hideHelp();
+                });
+           } else {
+                submit_sites([_me.attr('rel')], btn_type , 'Adding sites ...', enrol, _me.attr('data-lesson'));
+            }
+        });
+
+        $('#sites').on('click', 'a.delete', function(event) {
+            event.preventDefault();
+            const _me = $(this),
+                  _title = _me.data('title') === '' ? _me.attr('rel') : _me.data('title');
+
+            if (confirm(`Do you want to delete ${_title}?`) == true) {
+
+                var jqxhr = $.post('{{ $submit }}', { "type": 'delete', "site": _me.attr('rel') }, function(result) {
+                    if (result.success === 1) {
+                        location.reload();
+                    } else {
+                        alert('Error removing: ' + _title);
+                    }
+                }, 'json')
+                .fail(function() {
+                    alert('Error removing: ' + _title);
+                })
+                .always(function() {
+                    hideHelp();
+                });
+            }
+        });
+
+        $('#search_form input[type="text"]').keyup(function(event){
+            event.preventDefault();
+            doSearch();
+        });
+
+        $('#search_form #btn_search').on('click', function(event) {
+            event.preventDefault();
+
+            if($(this).hasClass('fa-search')) {
+                doSearch();
+            } else {
+                $('#search_form input[type="text"]').val('');
+                $(this).addClass('disabled').attr('disabled', true).addClass('fas fa-search').text("");
+                $('#sites>li').show();
+
+                let _active_filter = $('#stats > li.active > a').attr('rel'),
+                    _sites = $('#sites');
+
+                if (_active_filter == 'all') {
+                    _sites.children().show();
+                } else {
+                    _sites.children().hide();
+                    _sites.children('[data-state="'+ _active_filter +'"]').show();
+                }
+            }
+        });
+
+        $('#btn_reload_progress').on('click', function(event) {
+            event.preventDefault();
+            location.reload();
+        });
+
+        $('#stats > li > a').on('click', function(event) {
+            event.preventDefault();
+            const _me = $(this),
+                  _sites = $('#sites'),
+                  _pre = $('#pre');
+
+            if (!_me.parent().hasClass('active')) {
+                _me.parent().siblings().removeClass('active');
+                _me.parent().addClass('active');
+
+                _sites.children().removeClass('active');
+                _pre.html('');
+                if (_me.attr('rel') == 'all') {
+                    _sites.children().show();
+                } else {
+                    _sites.children().hide();
+                    _sites.children('[data-state="'+_me.attr('rel')+'"]').show();
+                }
+                btn_reset();
+                doSearch();
+                setProgress(false);
+            }
+        });
+
+        window.onmessage = (e) => {
+            const _data = JSON.parse(e.data);
+            if (_data.hasOwnProperty("url")) {
+                const iframe = document.querySelector(`[src="${_data.url}"]`),
+                    adjust = $('nav').exists() ? $('nav').height() : -3;
+                if (iframe) {
+                    iframe.style.height = `${Math.min(_data.height, 420)}px`;
+                }
+            }
+        };
+    });
+</script>

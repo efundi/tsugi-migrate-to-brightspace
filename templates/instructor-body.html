@@ -1,0 +1,326 @@
+<section data-state="{{ $state }}">
+    {% $unique_providers = array_unique($provider_details, SORT_REGULAR);
+       $count_provider_details = count($unique_providers); %}
+    <!-- <pre>{{ $count_provider_details }}|{{ json_encode($provider_details) }}|</pre> -->
+    <!-- <pre>{{ $instructor }}|{{ $user_role }}</pre> -->
+    <!-- <pre>{{ json_encode($site_size) }}</pre> -->
+
+    {% if ($state == "init") { %}
+        <h2 class="tool-header">Conversion Setup</h2>
+        {% if ($site_size['site_can_migrate']) { %}
+            <blockquote>Choose how you would like this site to be converted to Brightspace</blockquote>
+            <div class="row">
+                <div class="col-md-8">
+                    <form class="needs-validation" id="metadata">
+                        <input type="hidden" name="state"  id="state" value="{{ $state }}" />
+                        <input type="hidden" name="site-title" id="site-title" value="{{ $title }}" />
+                        <input type="hidden" name="current_user"  id="current_user" value="{{ $current_email }}" />
+
+                        <div class="row">
+                            <div class="col-md-12">
+                                <label>In Brightspace</label>
+                            </div>
+                            <div class="col-md-12 secondary" id="course_provider">
+                                <div class="radio">
+                                    <label for="create_course">
+                                        <input type="radio" name="select_type" id="create_course" checked="checked" />
+                                        Convert this site
+                                        {% if ($count_provider_details == 0) { %}
+                                            and create a new site in
+                                        {% } else { %}
+                                            {% if ($count_provider_details == 1) { $el = $provider_details[0]; %}
+                                            and create a new course site
+                                            {% } else { %}
+                                            {% } %}
+                                        {% } %}
+                                    </label>
+                                    <div id="do_course">
+                                        {% if ($count_provider_details == 0) { %}
+                                            <select class="form-control" name="provider_select" id="provider_select" required>
+                                                <option data-type="default" value="">Choose type of site ...</option>
+                                            {% foreach ($departments as $el) {
+                                                    $selected = ($current_dept == $el[0] ? 'selected' : '');
+                                                    print "<option value='". $el[0] ."' ". $selected ." data-dept='". $el[0] ."' data-course='other'>". $el[1] ."</option>";
+                                                }
+                                            %}
+                                            </select>
+                                        {% } else {
+                                            if ($count_provider_details == 1) {
+                                                $el = $provider_details[0]; %}
+                                                <input type="hidden" name="provider" id="provider"
+                                                    data-course="{{ $el['course'] }}"
+                                                    data-full="{{ $el['full'] }}"
+                                                    data-dept="{{ $el['dept'] }}"
+                                                    data-year="{{ $el['year'] }}"
+                                                    data-period="{{ $el['period'] }}"
+                                                    data-term="{{ $el['term'] }}"
+                                                    value="{{ $el['dept'] }}{{ $el['year'] }}{{ $el['no'] }}{{ $el['period'] }}"
+                                                    class="form-control disabled" disabled
+                                                    style="width: 100%;"/>
+                                                <!--span>{{ $el['dept'] }}{{ $el['year'] }}{{ $el['no'] }}{{ $el['period'] }}</span-->
+                                            {% } else {
+                                                    $course_site_depts = array();
+                                                    $project_sites = array();
+
+                                                    foreach ($provider_details as $el) {
+                                                        if (strlen($el['dept']) == 2) {
+                                                            array_push($project_sites, $el['dept']);
+                                                        } else if (strlen($el['dept']) == 3) {
+                                                            foreach ($all_departments as $all_depts) {
+                                                                if ($el['dept'] == $all_depts[0]) {
+                                                                    array_push($course_site_depts, array($all_depts[0], $all_depts[1], $all_depts[2]));
+                                                                }
+                                                            }
+                                                        }
+                                                    } // foreach provider
+
+                                                    $unique_project_sites = array_unique($project_sites, SORT_REGULAR);
+                                                    $unique_depts = array_unique($course_site_depts,SORT_REGULAR);
+
+                                                    if (count($unique_project_sites) > 1) { %}
+                                                        for <select class="form-control" name="provider_select" id="provider_select" required>
+                                                        <option data-type="default" value="">Choose type of site ...</option>
+                                                        {% foreach ($departments as $el) {
+                                                                $selected = ($current_dept == $el[0] ? 'selected' : '');
+                                                                print "<option value='".$el[0]."' $selected data-dept='other' data-course='other'>". $el[1] ."</option>";
+                                                            } %}
+                                                        </select>
+                                                    {% }
+
+                                                    if (count($unique_depts) == 1) {
+                                                        $el = $provider_details[0];
+                                                        foreach ($all_departments as $all_depts) {
+                                                            if ($el['dept'] == $all_depts[0]) { %}
+                                                                <input type="hidden" name="provider" id="provider"
+                                                                    data-dept="{{ $el['dept'] }}"
+                                                                    data-course = "other"
+                                                                    value = "{{ $el['dept'] }}, {{ $all_depts[2] }}"
+                                                                    class="form-control readonly" disabled
+                                                                    style="width: 100%;"/>
+                                                                <!--span>{{ $el['dept'] }}{{ $el['year'] }}{{ $el['no'] }}{{ $el['period'] }}</span-->
+                                                        {%  }
+                                                        } // foreach all department
+                                                    } else if (count($unique_depts) > 1) { %}
+                                                        for <select class="form-control" name="provider_select" id="provider_select" required>
+                                                        {%  foreach($unique_depts as $departs) {
+                                                                echo '<option value="'.$departs[0].'" data-dept="'.$departs[0].'" data-course="other">'.$departs[2].'</option>';
+                                                            } %}
+                                                        </select>
+                                                    {% }
+                                            } // else if ($count_provider_details == 1)
+                                        }
+
+                                    if ($count_provider_details > 0) { %}
+                                        <span class="desc">for teaching in</span>
+                                    {% }
+
+                                    if ($count_provider_details == 0) { %}
+                                        <input type="hidden" name="year" id="year" value="other" />
+                                    {% } else { %}
+                                        <select id="year" name="year" class="form-control" required>
+                                        {%  foreach ($years as $val) {
+                                                $selected = ($current_term == $val ? 'selected' : ''); %}
+                                                <option value="{{$val}}" {{$selected}}>{{$val}}</option>
+                                        {%  }  %}
+                                        </select>
+                                        <i class="fas fa-question-circle" title="Subject to Faculty approval." style="margin-left: 8px;"></i>
+                                    {% } %}
+                                    </div>
+                                </div>
+                                <div class="radio">
+                                    <label for="just_convert">
+                                        <input type="radio" name="select_type" id="just_convert" />
+                                        Convert this site, but do not create
+                                        {% if ($count_provider_details == 0) { %}
+                                            a new site
+                                        {% } else { %}
+                                            a new course site
+                                        {% } %}
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-12">
+                                <label for="notifications">Email Notifications for conversion updates</label>
+                            </div>
+                            <div class="col-md-12 secondary" >
+                                <span class="multi-item" value="{{ $current_email }}"> {{ $current_email }}</span>
+                                <textarea class="form-control" name="notifications" id="notifications"
+                                    placeholder="Additional addresses to notify of this migration">{{ $notifications }}</textarea>
+                                <button type="button" id="btn_add_me" style="display:none;">Add Me</button>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-xs-12">
+                                <button id="btn_start" class="btn btn-success disabled" type="button" data-path="a" disabled>Start Conversion </button>
+                                <small id="info" class="text-info" style="display:none;">This might take a couple of seconds.</small>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        {% } else { %}
+            <div class="row">
+                <div class="col-xs-12">
+                    <div class="alert alert-warning" role="alert" style="padding: 8px;">
+                        <i class="fas fa-exclamation" style="font-size: 2rem; opacity: 0.8; float: left; margin: 10px 15px 10px 8px; color: #c03733"></i>
+                        {{$site_size['size_result_st']}}
+                        <br/>
+                        Please contact <a href="mailto:nwu-helpdesk@nwu.ac.za?subject=Brightspace%20Conversion%3A%20{{ htmlentities($title) }}&body=Hi%20Support%20Team%2C%0D%0A%0D%0APlease%20help%20me%20with%20the%20migration%20of%20my%20site%3A%20{{ htmlentities($title) }}%20({{ htmlentities($site_id) }})%0D%0A%0D%0AThanks%20%3A)" title="Send help email">nwu-helpdesk@nwu.ac.za</a> so we can help you with this conversion.
+                    </div>
+                </div>
+            </div>
+        {% } %}
+    {% } else { %}
+        <input type="hidden" name="provider" id="provider" data-dept="{{$target_dept}}" data-course="{{ $target_course }}" value="{{$current_provider}}"/>
+        <input type="hidden" name="year" id="year" value="{{$current_term}}"/>
+        <input type="hidden" name="create_course" id="create_course" value="{{ $create_course_offering }}"/>
+
+        {% if (in_array($state, ['starting','exporting','running', 'queued', 'uploading','importing','updating'])) { %}
+            <div class="row">
+                <h2 class="tool-header">Conversion in progress</h2>
+                <ul class="steps">
+                    <li class="step" data-step="1" id="step1"><span class="hidden-xs">Starting</span></li>
+                    <li class="step" data-step="2" id="step2"><span class="hidden-xs">Exporting</span></li>
+                    <li class="step" data-step="3" id="step3"><span class="hidden-xs">Running</span></li>
+                    <li class="step" data-step="4" id="step4"><span class="hidden-xs">Uploading</span></li>
+                    <li class="step" data-step="5" id="step5"><span class="hidden-xs">Importing</span></li>
+                    <li class="step" data-step="6" id="step6"><span class="hidden-xs">Updating</span></li>
+                </ul>
+                {% if ($state == 'queued') { %}
+                    <blockquote><img id="running_icon" class="hidden-xs hidden-sm" />
+                        <p><span id="state-span">uploading </span>started {{ $last_modified  }}</p>
+                    </blockquote>
+                {% } else { %}
+                    <blockquote><img id="running_icon" class="hidden-xs hidden-sm" />
+                        <p><span id="state-span">{{ $state }} </span>started {{ $last_modified  }}</p>
+                    </blockquote>
+                {% } %}
+            </div>
+            <div class="row">
+                <p><br/>This eFundi site is being converted to Brightspace, which could take between 10 minutes and 12 hours depending on site content and the number of conversions in progress. When it's done, we'll send you an email confirmation, or you can check back here for updates.</p>
+            </div>
+        {% } elseif ($state == 'completed') { %}
+            <div class="row">
+                <h2 class="tool-header">Conversion complete <img id="conversion_completed_icon" />
+                    {% if ($user_role == 1) { %}
+                    <a class="btn btn-default btn-xs reload" href="#" id="reset_workflow" role="button" title="Re-set workflow ...">
+                        <i class="fas fa-redo"></i>
+                    </a>
+                    {% } %}
+                </h2>
+                <br/>
+                <div class="col-md-9">
+                    <div class="row display-flex">
+                        <div class="col-md-3 col-xs-4 col-sm-3 text-center">
+                            {% if ($has_report) { %}
+                            <div id="step-image">
+                                <a href="{{ $report_url }}" target="_blank">
+                                    <img src="./static/img/Read_report.svg" alt="Conversion report" width="50px"/>
+                                </a>
+                            </div>
+                            <div id="step-description">
+                                <a href="{{ $report_url }}" class="step_title" target="_blank">Conversion Report </a>
+                                <p>Issues which may need your attention.</p>
+                            </div>
+                            {% } %}
+                        </div>
+                        <div class="col-md-1 col-xs-12 text-center hidden-sm hidden-xs">
+                            {% if ($imported_site_id > 0) { %}
+                                <i class="fas fa-chevron-circle-right fa-2x text-success chev"></i>
+                            {% } %}
+                        </div>
+                        <div class="col-md-3 col-xs-4 col-sm-3 text-center" id="step_details">
+                            {% if ($imported_site_id > 0) { %}
+                                <div id="step-image">
+                                    <a href="https://brightspace.nwu.ac.za/d2l/home/{{ $imported_site_id}}" target="_blank">
+                                        <img src="./static/img/View_new_site.svg" alt="Converted Brightspace site" width="75px" />
+                                    </a>
+                                </div>
+                                <div id="step-description">
+                                    <a href="https://brightspace.nwu.ac.za/d2l/home/{{ $imported_site_id}}" class="step_title" target="_blank" >Converted reference site </a>
+                                    <p>A copy of this site on Brightspace.</p>
+                                </div>
+                            {% } %}
+                        </div>
+                        <div class="col-md-1 col-xs-12 text-center hidden-xs hidden-sm">
+                            {% if($target_site_id >  0 && $target_site_created == 1) { %}
+                                <i class="fas fa-chevron-circle-right fa-2x text-success chev"></i>
+                            {% } %}
+                        </div>
+                        <div class="col-md-3 col-xs-4 col-sm-4 text-center" id="step_details">
+                            {% if ($target_site_id > 0 && $target_site_created == 1)  { %}
+                                <div id="step-image">
+                                    <a href="https://brightspace.nwu.ac.za/d2l/home/{{ $target_site_id}}" target="_blank" >
+                                        <img src="./static/img/Step 3.svg" alt="New Brightspace site" width="75px" />
+                                    </a>
+                                </div>
+                                <div id="step-description">
+                                    <a href="https://brightspace.nwu.ac.za/d2l/home/{{ $target_site_id}}" class="step_title" target="_blank" >New Brightspace site </a>
+                                    <p>Import and update content and activities in this new site.</p>
+                                </div>
+                            {% } %}
+                        </div>
+                </div>
+            </div>
+            <div class="col-md-3 col-xs-12">&nbsp;</div>
+            </div>
+            <p>This site has been converted to Brightspace! Here's what to do next:</p>
+            <ol>
+                <li>Read the <a href="{{ $report_url }}" target="_blank">conversion report</a> which provides details on any issues that may need attention.</li>
+                <li>Visit the <a href="https://brightspace.nwu.ac.za/d2l/home/{{ $imported_site_id}}" target="_blank" >converted reference  site</a> on Brightspace to review how the eFundi content has converted to Brightspace tools.</li>
+                {% if ($target_site_id > 0 && $target_site_created == 1) { %}
+                    <li>Build your <a href="https://brightspace.nwu.ac.za/d2l/home/{{ $target_site_id}}" target="_blank">new Brightspace site</a> by importing content from the converted reference site as needed.</li>
+                {% } else if ($target_site_id > 0 && $target_site_created == 0) {%}
+                    <li>Build your new Brightspace site by importing content from the converted reference site as needed.</li>
+                {% } else {%}
+                    <li>Create a new Brightspace site, and import content from the converted reference site as needed.</li>
+                {% } %}
+                <li>Edit content or update settings in the new site as needed to address any issues flagged in the conversion report.</li>
+            </ol>
+        {% } elseif ($state == 'paused') { %}
+            <div class="row">
+                <h2 class="tool-header">Conversion Paused
+                    {% if ($user_role == 1) { %}
+                    <a class="btn btn-default btn-xs reload" href="#" id="reset_workflow" role="button" title="Re-set workflow ...">
+                        <i class="fas fa-redo"></i>
+                    </a>
+                    {% } %}
+                </h2>
+                <p>The conversion of this site to Brightspace was paused at a point in the workflow. We're looking into it, and will let you know as soon as there's an update</p>
+                <p id="workflow">
+                    {{ end($workflow) }}
+                </p>
+            </div>
+        {% } else { %}
+            <!-- ($state == '{{ $state }}') -->
+            <div class="row">
+                <h2 class="tool-header">Conversion failed <img id="conversion_failed_icon"/>
+                    {% if ($user_role == 1) { %}
+                    <a class="btn btn-default btn-xs reload" href="#" id="reset_workflow" role="button" title="Re-set workflow ...">
+                        <i class="fas fa-redo"></i>
+                    </a>
+                    {% } %}
+                </h2>
+                <p>The conversion of this site to Brightspace ran into an unexpected error. We're looking into it, and will let you know as soon as there's an update</p>
+            </div>
+        {% }
+    } %}
+    <br/>
+    <div class="contact-box">
+        <div class="icon icon_1"></div>
+        <div class="icon icon_2 hidden-xs hidden-sm"></div>
+    </div>
+    <div class="row" id="support-footer">
+        <div class="col-md-12 text-center" id="support-section">
+            <p id="support_text">Need more help or advice? Consult the
+                <a href="https://efundi.nwu.ac.za/brightspace" title="Brightspace : Support" target="_blank"/>help documentation</a>
+                or contact
+                <a href="mailto:nwu-helpdesk@nwu.ac.za?subject=Brightspace%20Conversion%3A%20{{ htmlentities($title) }}&body=Hi%20Support%20Team%2C%0D%0A%0D%0APlease%20help%20me%20with%20the%20migration%20of%20my%20site%3A%20{{ htmlentities($title) }}%20({{ htmlentities($site_id) }})%0D%0A%0D%0AThanks%20%3A)" title="Send help email">nwu-helpdesk@nwu.ac.za</a>.
+            </p>
+        </div>
+    </div>
+</section>
+

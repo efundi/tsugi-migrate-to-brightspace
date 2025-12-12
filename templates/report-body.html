@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" >
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TSUGI-DEV</title>
+    <link href='https://fonts.googleapis.com/css?family=Montserrat' rel='stylesheet'>
+
+    <!-- Le styles -->
+    <link href="/static/bootstrap-3.4.1/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/js/jquery-ui-1.11.4/jquery-ui.min.css" rel="stylesheet">
+    <link href="/static/fontawesome-free-5.8.2-web/css/all.css" rel="stylesheet">
+    <link href="/static/fontawesome-free-5.8.2-web/css/v4-shims.css" rel="stylesheet">
+    <link href="/static/css/tsugi2.css" rel="stylesheet">
+    
+    <link href="static/css/report.min.css" rel="stylesheet" />
+</head>
+<body>
+    {% if (count($links) > 1) { %}
+    <nav>
+        <ul class="nav nav-tabs" role="tablist">
+            {% foreach ($links as $i => $link) { %}
+            <li role="presentation" class="{% if ($i == 0) { %}active{% } %}">
+                <a href="#report_{{$link['id']}}" aria-controls="report_{{$link['id']}}" role="tab" data-toggle="tab">
+                    <span class="main">{{ $link['modified'] }}&nbsp;
+                        (<span class="date" datetime="{{ $link['modified_raw'] }}">{{ explode(" ", $link['modified_raw'])[1] }}</span>)
+                    </span>
+                    <span class="started date" datetime="{{ $link['started_raw'] }}">{{ $link['started'] }}</span>
+                    {% 
+                        $cls = 'badge-light';
+                        switch ($link['state']) {
+                            case 'init':
+                                $cls = 'badge-light';
+                                break;
+                            case 'starting':
+                            case 'exporting':
+                            case 'running':
+                                $cls = 'badge-primary';
+                                break;
+                            case 'importing':
+                            case 'updating':
+                                    $cls = 'badge-info';
+                                    break;
+                            case 'error':
+                                $cls = 'badge-danger';
+                                break;
+                            case 'completed':
+                                $cls = 'badge-success';
+                                break;                                        
+                            case 'paused':
+                                $cls = 'badge-warning';
+                                break;                                        
+                            case 'paused':
+                                $cls = 'badge-dark';
+                                break;
+                            default:
+                                $cls = 'badge-light';
+                        }   
+                    %}
+                    <span class="badge {{ $cls }}">{{ $link['state'] }}</span>
+                </a>
+            </li>
+            {% } %}
+        </ul>
+    </nav>
+    {% } %}
+    <div class="tab-content">
+    {% foreach ($links as $i => $link) { %}
+    <div id="report_{{$link['id']}}" role="tabpanel" class="tab-pane {% if ($i == 0) { %}active{% } %}"
+        data-link="{{ $link['imported_site_id'] }}" 
+        data-state="{{ $link['state'] }}" 
+        data-started="{{ $link['started_raw'] }}" 
+        data-modified="{{ $link['modified_raw'] }}">
+        <iframe src="{{ $link['url'] }}" class="report_iframe" 
+            frameborder="0" 
+            marginheight="0" 
+            marginwidth="0" 
+            width="100%" 
+            height="100%" 
+            scrolling="auto"></iframe>
+    </div>
+    {% } %}
+    </div>
+

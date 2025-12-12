@@ -1,0 +1,40 @@
+<script src="https://tsugidev.uct.ac.za/static/js/jquery-1.11.3.js"></script>
+<script src="https://tsugidev.uct.ac.za/static/bootstrap-3.4.1/js/bootstrap.min.js"></script>
+<script src="https://tsugidev.uct.ac.za/static/js/jquery-ui-1.11.4/jquery-ui.min.js"></script>
+<script src="https://tsugidev.uct.ac.za/static/js/jquery.timeago-1.6.3.js"></script>
+<script type="text/javascript">
+    jQuery.fn.exists = function(){ return this.length > 0; }
+
+    function resize_all_iframes(_h) {
+        const children = [...document.getElementsByTagName('iframe')];
+        children.forEach((child) => {
+            child.style.height = _h +'px';
+        });
+    }
+
+    function inIframe () {
+        try {
+            return window.self !== window.top;
+        } catch (e) {
+            return true;
+        }
+    }
+
+    $(function() {
+        $(".date").each(function(j, e){ let _l = $(e); _l.html($.timeago(_l.attr('datetime'))); }); 
+        
+        if (inIframe()) {
+            $('body').addClass('inside');
+            // console.log($('body').height());
+            $('iframe').css('height', ($('body').height() - 80) +'px');
+        }
+    });
+
+    window.onmessage = (e) => {
+        const _data = JSON.parse(e.data);
+        if (_data.hasOwnProperty("url")) {
+            resize_all_iframes(_data.height);
+        }
+    };
+</script>
+</body></html>

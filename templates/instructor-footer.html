@@ -1,0 +1,264 @@
+{% foreach($scripts as $script): %}
+    <script src="{{$script}}" type="text/javascript"></script>
+{% endforeach; %}
+
+<script type="text/javascript">
+    jQuery.fn.exists = function(){ return this.length > 0; }
+
+    $(function() {
+        const state_array = ['starting', 'exporting', 'running', 'uploading', 'importing', 'updating', 'completed'];
+        const static_state_array = ['init', 'completed', 'error'];
+        var state = '{{ $state }}' == 'queued' ? 'uploading' : '{{ $state }}';
+        var timeout = null;
+        setStateClass(state);
+
+        $('[data-toggle="tooltip"]').tooltip();
+
+        // if ($("#workflow").exists()) {
+        //     console.log("workflow");
+        // }
+
+        if (!static_state_array.includes(state)) {
+            setTimeout("window.open(self.location, '_self');", 30000);
+        }
+
+        function setError(st) {
+            $(st).removeClass('text-success text-info').addClass('text-danger').children('i').removeClass('fa-ellipsis-h fa-check').addClass('fa-times');
+            $(st).delay(10000).queue(function(){
+                $(this).removeClass('text-success text-info text-danger').children('i').removeClass('fa-ellipsis-h fa-check fa-times');
+            });
+        }
+
+        function setSaved(st) {
+            $(st).removeClass('text-success text-info').addClass('').children('i').removeClass('fa-ellipsis-h fa-times').addClass('fa-check');
+            $(st).delay(10000).queue(function(){
+                $(this).removeClass('text-success text-info text-danger').children('i').removeClass('fa-ellipsis-h fa-check fa-times');
+            });
+        }
+
+        function setSaving(st) {
+            $(st).removeClass('text-success text-danger').addClass('text-info').children('i').removeClass('fa-times fa-check').addClass('fa-ellipsis-h');
+        }
+
+        function hideHelp() {
+            clearTimeout(timeout);
+            $('#info').hide();
+        }
+
+        function showError(a) {
+            $('#' + a).html('<i class="fa fa-exclamation"></i> Error').addClass('disabled').attr('disabled', true);
+            $('#message').html('<p class="bg-danger">An error occurred while performing this action, please contact <a href="mailto:nwu-helpdesk@nwu.ac.za?subject=efundi - Please help with: Lecture Recording Setup">nwu-helpdesk@nwu.ac.za</a><br/> or call 021-650-5500 weekdays 8:30 - 17:00.</p>');
+        }
+
+        function check_if_im_in_notification(add_me) {
+            const _el = $('#btn_add_me'),
+                  _state = $('#state').val(),
+                  _email = $('#current_user').val(),
+                  _email_starter = $('#organizer').data('email'),
+                  _notification = $('#notifications').val().trim().replace(/\r?\n/g, ', ').split(';');
+
+            if (_email === _email_starter) return;
+
+            let in_list = _notification.includes(_email);
+
+            if ((in_list === false) && (_state !== 'init')) {
+                _el.show();
+                console.log(`showing ${add_me}`);
+                if (add_me) {
+                    try {
+                        console.log(`adding ${_email}`);
+                        $('#notifications')[0].insert(_email);
+                    } catch (e) {
+                        console.log(e);
+                    }
+                }
+            } else {
+                _el.hide();
+            }
+        }
+
+        function resetMigration(a, type, alt) {
+            var data = { "type": type };
+
+            var jqxhr = $.post('{{ $reset }}', data, function(result) {
+                    hideHelp();
+                    if (result.success === 1) {
+                        window.location.reload();
+                    } else {
+                        showError(a);
+                    }
+                }, 'json')
+                .fail(function() {
+                    hideHelp();
+                    showError(a);
+                })
+                .always(function() {
+                    hideHelp();
+                });
+        }
+
+        function migrateSite(a, type, alt) {
+            const organizer = $('#organizer').exists() ? $('#organizer').val().trim().replace(/\r?\n/g, ', ') : '',
+                  notification = $('#'+ alt).exists() ?  $('#'+ alt).val().trim().replace(/\r?\n/g, ', ') : '',
+                  _provider = $('#provider').exists() ? $('#provider') : undefined,
+                  _provider_select = $('#provider_select').exists() ? $('#provider_select') : undefined;
+
+            let provider = _provider ? _provider.val() : (_provider_select ? _provider_select.val() : ''),
+                course = _provider ? (_provider.data('course')) :
+                                (_provider_select.prop('nodeName') == 'SELECT' ?
+                                    _provider_select.find('option:selected').data('course') :
+                                    _provider_select.find('option:selected').val()),
+                dept = _provider ? _provider.data('dept') : (_provider_select ? _provider_select.find('option:selected').data('dept') : ''),
+                term = $('#year').exists ? $('#year').val() : (new Date()).getFullYear(),
+                create_course = $('#create_course').prop('type') == 'hidden' ? $('#create_course').val() : ($('#create_course').is(':checked') ? 1 : 0);
+
+            var data = {
+                    "type": type,
+                    "title": "{{ $title }}",
+                    "organizer": (organizer.endsWith(', ') ? organizer.substring(0, organizer.length-2) : organizer),
+                    "notification": (notification.endsWith(', ') ? notification.substring(0, notification.length-2) : notification),
+                    "provider": provider == '' ? (dept == 'other' ? dept : '[]') : provider,
+                    "course" : course,
+                    "dept": dept,
+                    "term": term,
+                    "create_course": create_course,
+                    "enrol": 1 // for self conversion we enroll the site owners and support staff
+                }
+
+            // console.log(data);
+            var jqxhr = $.post('{{ $submit }}', data, function(result) {
+                hideHelp();
+                if (result.success === 1) {
+                    $('#' + a).html('<i class="fa fa-check"></i> Refreshing page ...');
+                    setTimeout(function() { location.reload(); }, 300);
+                } else {
+                    showError(a);
+                }
+            }, 'json')
+            .fail(function() {
+                hideHelp();
+                showError(a);
+            })
+            .always(function() {
+                hideHelp();
+            });
+        }
+
+        function can_submit() {
+            const  _btn = $('#btn_start'),
+                  _create_course = $('#create_course').is(':checked'),
+                  _just_convert  = $('#just_convert').is(':checked'),
+                  _provider = $('#provider_select').exists() ? $('#provider_select').val() != '' : true,
+                  _year = $('#year').exists() ? $('#year').val() != '' : true,
+                  valid = (_create_course && _provider && _year) || _just_convert;
+
+            // console.log(`can_submit: ${valid}`);
+            if (valid) {
+                _btn.removeClass('disabled').removeAttr('disabled');
+                return true;
+            } else {
+                _btn.addClass('disabled').attr('disabled', 'true');
+                return false;
+            }
+        }
+
+        function setStateClass(state) {
+            let _current_step = state_array.indexOf(state) + 1;
+            if(state == 'queued') {
+                state = 'uploading';
+                $(`#step${_current_step}`).addClass("is-active").removeClass('is-pending');
+            }
+
+            // all is pending
+            $(".steps > .step").addClass("is-pending").removeClass('is-active is-complete');
+            // set the current step
+            $(`#step${_current_step}`).addClass("is-active").removeClass('is-pending');
+            $(`#step${_current_step}`).find("span").removeClass('hidden-xs');
+            // set completed
+            $(".steps > .step").filter(function() { return $(this).data("step") < _current_step; }).addClass("is-complete hidden-xs").removeClass('is-pending');
+        }
+
+        $('#year, #provider, #provider_select').on("change", function(event) {
+            if ($(this).val != '') {
+                $(this).find('option[data-type=default]').remove();
+            }
+            can_submit();
+        });
+
+        $('#create_course, #just_convert').on("change", function(event) {
+            can_submit();
+        });
+
+        if ($('#notifications').exists()) {
+            $("#notifications").on('change', function(event) {
+                var i = $(this).val();
+                if (i != tmp_inp) {
+                    tmp_inp = i;
+                    setSaving('label[for=notifications]');
+                    check_if_im_in_notification(false);
+
+                    var notification = $('#notifications').val().trim().replace(/\r?\n/g, ', ');
+                    var data = {
+                        "type": "updating",
+                        "notification": (notification.endsWith(', ') ? notification.substring(0, notification.length-2) : notification),
+                        "term": $('#year').val()
+                    }
+
+                    $.ajax({
+                        url: '{{ $submit }}',
+                        method: 'POST',
+                        data: data,
+                        dataType: 'json'
+                    }).done(function(data) {
+                        if (!data.success) {
+                            console.log(data);
+                            console.log("Could not save email");
+                            setError('label[for=notifications]');
+                        } else {
+                            setSaved('label[for=notifications]');
+                        }
+                    }).fail(function(xhr) {
+                        console.log(xhr);
+                        setError('label[for=notifications]');
+                    });
+                }
+            }).email_multiple({ data: $('#notifications').val().split(';'), inputPlaceholder: $('#notifications').attr('placeholder') });
+            tmp_inp = $('#notifications').val();
+
+            $("#btn_add_me").click( function(event) {
+                event.preventDefault();
+                check_if_im_in_notification(true);
+            });
+            check_if_im_in_notification(false);
+        }
+
+        $('#restart_workflow').on('click', function(event) {
+            event.preventDefault();
+            const _me = $(this);
+
+            migrateSite(_me.attr('id'), 'init', 'notifications_hidden');
+        });
+
+        $('#reset_workflow').on('click', function(event) {
+            event.preventDefault();
+            const _me = $(this);
+
+            resetMigration(_me.attr('id'), 'init', 'notifications_hidden');
+        });
+
+        $('#btn_start').click( function(event) {
+            event.preventDefault();
+            const _me = $(this);
+
+            if (can_submit()) {
+                _me.html('<i class="fa fa-cog fa-spin"></i>Starting process...').addClass('disabled').attr('disabled', true);
+                timeout = setTimeout(function(){ $('#info').show(); }, 300);
+
+                migrateSite(_me.attr('id'), 'init', 'notifications');
+            }
+        });
+        // check after loading
+        can_submit();
+    });
+</script>
+
